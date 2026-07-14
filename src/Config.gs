@@ -76,3 +76,15 @@ const JPAIS = Object.freeze({
     "Remarks"
   ]
 });
+/**
+ * Workflow status constants
+ */
+const WORKFLOW_STATUS = Object.freeze({
+  DRAFT: "Draft",
+  VALIDATED: "Validated",
+  GENERATING: "Generating Package",
+  READY: "Package Ready",
+  QA: "QA Review",
+  APPROVED: "Approved",
+  PUBLISHED: "Published"
+});
