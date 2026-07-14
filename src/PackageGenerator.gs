@@ -36,6 +36,12 @@ function createCompleteKnowledgePackage() {
   context.row,
   WORKFLOW_STATUS.READY
 );
+    logAudit_(
+  "CREATE_PACKAGE",
+  context.documentId,
+  "SUCCESS",
+  "Knowledge Package created or safely reused."
+);
     SpreadsheetApp.getActive().toast(
       "Knowledge Package created or safely reused.",
       "JPAIS",

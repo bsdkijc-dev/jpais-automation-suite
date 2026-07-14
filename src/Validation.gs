@@ -8,6 +8,12 @@ function validateActiveProductionRow() {
   context.row,
   WORKFLOW_STATUS.VALIDATED
 );
+    logAudit_(
+  "VALIDATE_ROW",
+  context.documentId,
+  "SUCCESS",
+  "Active Production Board row validated."
+);
     SpreadsheetApp.getUi().alert(
       "Active Row Valid",
       [
