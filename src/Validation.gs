@@ -14,7 +14,7 @@ if (!validation.valid) {
   );
   return;
 }
-    etWorkflowStatus_(
+    setWorkflowStatus_(
   context.row,
   WORKFLOW_STATUS.VALIDATED
 );
