@@ -1,29 +1,26 @@
 /**
- * Creates the full JPAIS Knowledge Package for the active Production Board row.
+ * Creates or safely reuses a complete JPAIS Knowledge Package.
  *
- * Generated assets:
- * - Folder hierarchy
- * - Executive Summary Google Doc
- * - Presentation Google Slides
- * - Metadata Google Sheet
- * - FAQ Google Doc
- * - References Google Doc
- * - Quiz Google Form
- *
- * Podcast, Mind Map, and Infographic remain NotebookLM/creative outputs;
- * their folders are created and tracker fields remain available for links.
+ * The operation is idempotent:
+ * - Existing package folders are reused.
+ * - Existing Google Workspace assets are reused by exact file name.
+ * - Team-authored content is never overwritten.
+ * - STATUS.json and MANIFEST.csv are refreshed to reflect the current package.
  */
 function createCompleteKnowledgePackage() {
   const lock = LockService.getDocumentLock();
+  let lockAcquired = false;
 
   try {
     lock.waitLock(30000);
+    lockAcquired = true;
 
     const context = getActiveProductionContext_();
     validateNoExistingPackageConflict_(context);
 
     const packageInfo = ensureKnowledgePackageFolders_(context);
     const assets = createPackageAssets_(context, packageInfo);
+    validateAssetSet_(assets);
 
     updateProductionRowAfterCreation_(context, packageInfo, true, assets);
     upsertDocumentRegistry_(context, packageInfo, assets);
@@ -32,7 +29,7 @@ function createCompleteKnowledgePackage() {
 
     SpreadsheetApp.flush();
     SpreadsheetApp.getActive().toast(
-      "Complete Knowledge Package created successfully.",
+      "Knowledge Package created or safely reused.",
       "JPAIS",
       8
     );
@@ -41,128 +38,135 @@ function createCompleteKnowledgePackage() {
   } catch (error) {
     handleError_("Knowledge Package creation failed", error);
   } finally {
-    lock.releaseLock();
+    if (lockAcquired) lock.releaseLock();
   }
 }
 
 function createPackageAssets_(context, packageInfo) {
-  const assets = {};
+  const assets = {
+    executiveSummary: getOrCreateExecutiveSummaryDoc_(
+      context,
+      packageInfo.subfolders["02_Executive_Summary"]
+    ),
+    presentation: getOrCreatePresentation_(
+      context,
+      packageInfo.subfolders["04_Presentation_Slides"]
+    ),
+    faq: getOrCreateFAQDoc_(
+      context,
+      packageInfo.subfolders["07_FAQ"]
+    ),
+    quiz: getOrCreateQuizForm_(
+      context,
+      packageInfo.subfolders["08_Quiz"]
+    ),
+    metadata: getOrCreateMetadataSheet_(
+      context,
+      packageInfo.subfolders["09_Data_Table"]
+    ),
+    references: getOrCreateReferencesDoc_(
+      context,
+      packageInfo.subfolders["10_References"]
+    )
+  };
 
-  assets.executiveSummary = createExecutiveSummaryDoc_(
-    context,
-    packageInfo.subfolders["02_Executive_Summary"]
-  );
-
-  assets.presentation = createPresentation_(
-    context,
-    packageInfo.subfolders["04_Presentation_Slides"]
-  );
-
-  assets.faq = createFAQDoc_(
-    context,
-    packageInfo.subfolders["07_FAQ"]
-  );
-
-  assets.quiz = createQuizForm_(
-    context,
-    packageInfo.subfolders["08_Quiz"]
-  );
-
-  assets.metadata = createMetadataSheet_(
-    context,
-    packageInfo.subfolders["09_Data_Table"]
-  );
-
-  assets.references = createReferencesDoc_(
-    context,
-    packageInfo.subfolders["10_References"]
-  );
-
-  assets.statusFile = createPackageStatusFile_(
-    context,
-    packageInfo,
-    assets
-  );
+  assets.readme = createPackageReadme_(context, packageInfo);
+  assets.qaChecklist = createQAChecklist_(context, packageInfo);
+  assets.manifest = createPackageManifest_(context, packageInfo, assets);
+  assets.statusFile = createPackageStatusFile_(context, packageInfo, assets);
 
   return assets;
 }
 
-function createExecutiveSummaryDoc_(context, destinationFolder) {
-  const doc = DocumentApp.create(context.documentId + " - Executive Summary");
+function getOrCreateExecutiveSummaryDoc_(context, destinationFolder) {
+  const fileName = context.documentId + " - Executive Summary";
+  const existing = getFirstFileByName_(destinationFolder, fileName);
+  if (existing) return assetResult_(existing);
+
+  const doc = DocumentApp.create(fileName);
   const body = doc.getBody();
 
   body.appendParagraph("JPAIS EXECUTIVE SUMMARY")
-      .setHeading(DocumentApp.ParagraphHeading.TITLE);
+    .setHeading(DocumentApp.ParagraphHeading.TITLE);
   body.appendParagraph(context.documentTitle)
-      .setHeading(DocumentApp.ParagraphHeading.HEADING1);
+    .setHeading(DocumentApp.ParagraphHeading.HEADING1);
 
   appendMetadataTableToDoc_(body, context);
 
   [
-    ["1. Background", "Describe the institutional and legal background of the document."],
-    ["2. Purpose", "State the document's principal objectives."],
-    ["3. Legal Basis", "List the relevant constitutional, statutory, regulatory, and institutional authorities."],
-    ["4. Key Provisions or Findings", "Summarize the most important provisions, findings, or recommendations."],
-    ["5. Implementation Implications", "Explain implications for courts, judges, officials, researchers, and other stakeholders."],
-    ["6. Risks and Considerations", "Identify legal, operational, institutional, budgetary, and implementation risks."],
-    ["7. Conclusion", "Provide a concise evidence-based conclusion."]
+    ["1. Executive Summary", "Provide a concise overview of the document and its institutional significance."],
+    ["2. Background", "Describe the legal, policy, and institutional context."],
+    ["3. Legal Issues", "Identify the principal legal or regulatory issues."],
+    ["4. Legal Basis", "List the relevant constitutional, statutory, regulatory, and institutional authorities."],
+    ["5. Analysis", "Present source-based legal and policy analysis."],
+    ["6. Implementation Implications", "Explain institutional roles, resources, procedures, and timelines."],
+    ["7. Risks", "Identify legal, operational, data, security, and implementation risks."],
+    ["8. Recommendations", "Provide actionable, evidence-based recommendations."],
+    ["9. Conclusion", "State the principal conclusion and next actions."]
   ].forEach(function(section) {
-    body.appendParagraph(section[0]).setHeading(DocumentApp.ParagraphHeading.HEADING2);
+    body.appendParagraph(section[0])
+      .setHeading(DocumentApp.ParagraphHeading.HEADING2);
     body.appendParagraph(section[1]);
   });
 
-  body.appendParagraph("Quality Notice")
-      .setHeading(DocumentApp.ParagraphHeading.HEADING2);
-  body.appendParagraph(
-    "This document is an AI-assisted working template. All legal statements, citations, and interpretations must be verified against official sources before publication."
-  );
-
+  appendQualityNotice_(body);
   doc.saveAndClose();
   moveFileToFolder_(doc.getId(), destinationFolder);
 
-  return { id: doc.getId(), url: doc.getUrl(), name: doc.getName() };
+  return assetResult_(DriveApp.getFileById(doc.getId()));
 }
 
-function createPresentation_(context, destinationFolder) {
-  const presentation = SlidesApp.create(context.documentId + " - Presentation");
-  const slides = presentation.getSlides();
+function getOrCreatePresentation_(context, destinationFolder) {
+  const fileName = context.documentId + " - Presentation";
+  const existing = getFirstFileByName_(destinationFolder, fileName);
+  if (existing) return assetResult_(existing);
 
+  const presentation = SlidesApp.create(fileName);
+  const slides = presentation.getSlides();
   const titleSlide = slides[0];
-  titleSlide.getShapes()[0].getText().setText(context.documentTitle);
-  if (titleSlide.getShapes().length > 1) {
-    titleSlide.getShapes()[1].getText().setText(
+  const shapes = titleSlide.getShapes();
+
+  if (shapes.length > 0) {
+    shapes[0].getText().setText(context.documentTitle);
+  }
+  if (shapes.length > 1) {
+    shapes[1].getText().setText(
       "JPAIS Knowledge Package\nDocument ID: " + context.documentId
     );
   }
 
-  const sections = [
+  [
     ["Overview", "Purpose, scope, and institutional context."],
-    ["Legal Basis", "Relevant laws, regulations, policies, and institutional authority."],
+    ["Background", "Legal, policy, and operational background."],
+    ["Legal Basis", "Relevant laws, regulations, policies, and authority."],
     ["Key Provisions or Findings", "Core provisions, issues, findings, or recommendations."],
-    ["Implementation", "Institutional roles, procedures, resources, and timelines."],
+    ["Implementation", "Institutional roles, procedures, resources, and timeline."],
     ["Risks and Mitigation", "Legal, operational, data, security, and implementation risks."],
+    ["Recommendations", "Prioritized institutional actions."],
     ["Conclusion", "Principal conclusions and next actions."]
-  ];
-
-  sections.forEach(function(section) {
-    const slide = presentation.appendSlide(SlidesApp.PredefinedLayout.TITLE_AND_BODY);
+  ].forEach(function(section) {
+    const slide = presentation.appendSlide(
+      SlidesApp.PredefinedLayout.TITLE_AND_BODY
+    );
     const placeholders = slide.getPlaceholders();
-    placeholders[0].asShape().getText().setText(section[0]);
+    if (placeholders.length > 0) {
+      placeholders[0].asShape().getText().setText(section[0]);
+    }
     if (placeholders.length > 1) {
       placeholders[1].asShape().getText().setText(section[1]);
     }
   });
 
   moveFileToFolder_(presentation.getId(), destinationFolder);
-  return {
-    id: presentation.getId(),
-    url: presentation.getUrl(),
-    name: presentation.getName()
-  };
+  return assetResult_(DriveApp.getFileById(presentation.getId()));
 }
 
-function createMetadataSheet_(context, destinationFolder) {
-  const spreadsheet = SpreadsheetApp.create(context.documentId + " - Metadata");
+function getOrCreateMetadataSheet_(context, destinationFolder) {
+  const fileName = context.documentId + " - Metadata";
+  const existing = getFirstFileByName_(destinationFolder, fileName);
+  if (existing) return assetResult_(existing);
+
+  const spreadsheet = SpreadsheetApp.create(fileName);
   const sheet = spreadsheet.getSheets()[0];
   sheet.setName("Metadata");
 
@@ -171,7 +175,7 @@ function createMetadataSheet_(context, destinationFolder) {
     ["Document ID", context.documentId],
     ["Official Title", context.documentTitle],
     ["Category", context.category],
-    ["Assigned Lead", context.assignedLead],
+    ["Assigned Lead", context.assignedLead || ""],
     ["Status", context.status || "In Progress"],
     ["Language", ""],
     ["Issuing Institution", ""],
@@ -179,11 +183,12 @@ function createMetadataSheet_(context, destinationFolder) {
     ["Year", ""],
     ["Subject Area", ""],
     ["Keywords", ""],
+    ["Legal Basis", ""],
     ["Legal Status", ""],
     ["Source URL", ""],
     ["NotebookLM URL", context.notebookLmUrl || ""],
     ["Date Created", new Date()],
-    ["Version", "1.0"],
+    ["Version", JPAIS.VERSION],
     ["Access Level", "Internal"],
     ["Review Status", "Pending"]
   ];
@@ -194,72 +199,91 @@ function createMetadataSheet_(context, destinationFolder) {
     .setFontColor("#FFFFFF")
     .setFontWeight("bold");
   sheet.getRange("A1:B" + rows.length).setWrap(true);
-  sheet.autoResizeColumns(1, 2);
   sheet.setColumnWidth(1, 190);
   sheet.setColumnWidth(2, 420);
   sheet.setFrozenRows(1);
 
   moveFileToFolder_(spreadsheet.getId(), destinationFolder);
-  return {
-    id: spreadsheet.getId(),
-    url: spreadsheet.getUrl(),
-    name: spreadsheet.getName()
-  };
+  return assetResult_(DriveApp.getFileById(spreadsheet.getId()));
 }
 
-function createFAQDoc_(context, destinationFolder) {
-  const doc = DocumentApp.create(context.documentId + " - FAQ");
+function getOrCreateFAQDoc_(context, destinationFolder) {
+  const fileName = context.documentId + " - FAQ";
+  const existing = getFirstFileByName_(destinationFolder, fileName);
+  if (existing) return assetResult_(existing);
+
+  const doc = DocumentApp.create(fileName);
   const body = doc.getBody();
+
   body.appendParagraph("FREQUENTLY ASKED QUESTIONS")
-      .setHeading(DocumentApp.ParagraphHeading.TITLE);
+    .setHeading(DocumentApp.ParagraphHeading.TITLE);
   body.appendParagraph(context.documentTitle)
-      .setHeading(DocumentApp.ParagraphHeading.HEADING1);
+    .setHeading(DocumentApp.ParagraphHeading.HEADING1);
 
   for (let i = 1; i <= 10; i++) {
     body.appendParagraph(i + ". [Insert verified question]")
-        .setHeading(DocumentApp.ParagraphHeading.HEADING2);
-    body.appendParagraph("[Insert concise, source-based answer and citation.]");
+      .setHeading(DocumentApp.ParagraphHeading.HEADING2);
+    body.appendParagraph(
+      "[Insert concise, source-based answer. Include a citation or official source link.]"
+    );
   }
 
-  body.appendParagraph(
-    "All answers must be verified against official sources before publication."
-  ).setItalic(true);
-
+  appendQualityNotice_(body);
   doc.saveAndClose();
   moveFileToFolder_(doc.getId(), destinationFolder);
-  return { id: doc.getId(), url: doc.getUrl(), name: doc.getName() };
+
+  return assetResult_(DriveApp.getFileById(doc.getId()));
 }
 
-function createReferencesDoc_(context, destinationFolder) {
-  const doc = DocumentApp.create(context.documentId + " - References");
+function getOrCreateReferencesDoc_(context, destinationFolder) {
+  const fileName = context.documentId + " - References";
+  const existing = getFirstFileByName_(destinationFolder, fileName);
+  if (existing) return assetResult_(existing);
+
+  const doc = DocumentApp.create(fileName);
   const body = doc.getBody();
+
   body.appendParagraph("REFERENCES AND RELATED DOCUMENTS")
-      .setHeading(DocumentApp.ParagraphHeading.TITLE);
+    .setHeading(DocumentApp.ParagraphHeading.TITLE);
   body.appendParagraph(context.documentTitle)
-      .setHeading(DocumentApp.ParagraphHeading.HEADING1);
+    .setHeading(DocumentApp.ParagraphHeading.HEADING1);
 
   [
     "Official source document",
-    "Related laws and regulations",
+    "Constitution and legislation",
     "Related PERMA, SEMA, and SK KMA",
-    "Court decisions",
+    "Related court decisions",
     "Judicial research and policy briefs",
     "Academic references",
-    "International standards and comparative materials"
+    "International standards",
+    "Comparative-law materials"
   ].forEach(function(item) {
     body.appendListItem(item + ": [Insert verified citation and URL]");
   });
 
+  appendQualityNotice_(body);
   doc.saveAndClose();
   moveFileToFolder_(doc.getId(), destinationFolder);
-  return { id: doc.getId(), url: doc.getUrl(), name: doc.getName() };
+
+  return assetResult_(DriveApp.getFileById(doc.getId()));
 }
 
-function createQuizForm_(context, destinationFolder) {
-  const form = FormApp.create(context.documentId + " - Knowledge Quiz");
+function getOrCreateQuizForm_(context, destinationFolder) {
+  const fileName = context.documentId + " - Knowledge Quiz";
+  const existing = getFirstFileByName_(destinationFolder, fileName);
+
+  if (existing) {
+    const existingForm = FormApp.openById(existing.getId());
+    return assetResult_(existing, {
+      editUrl: existingForm.getEditUrl(),
+      publishedUrl: existingForm.getPublishedUrl()
+    });
+  }
+
+  const form = FormApp.create(fileName);
   form.setDescription(
     "JPAIS knowledge assessment for " + context.documentTitle +
-    ". Questions and answers must be legally verified before publication."
+    ". Questions and answers must be verified before publication."
   );
   form.setIsQuiz(true);
 
@@ -277,26 +301,150 @@ function createQuizForm_(context, destinationFolder) {
   }
 
   moveFileToFolder_(form.getId(), destinationFolder);
-  return {
-    id: form.getId(),
+  return assetResult_(DriveApp.getFileById(form.getId()), {
     editUrl: form.getEditUrl(),
-    publishedUrl: form.getPublishedUrl(),
-    name: form.getTitle()
-  };
+    publishedUrl: form.getPublishedUrl()
+  });
+}
+
+function createPackageReadme_(context, packageInfo) {
+  const content = [
+    "# JPAIS Knowledge Package",
+    "",
+    "## Document Information",
+    "",
+    "- Document ID: " + context.documentId,
+    "- Document Title: " + context.documentTitle,
+    "- Category: " + context.category,
+    "- Assigned Lead: " + (context.assignedLead || ""),
+    "- Package Version: " + JPAIS.VERSION,
+    "- Created: " + formatTimestamp_(new Date()),
+    "",
+    "## Purpose",
+    "",
+    "This folder is the controlled JPAIS workspace for the source document.",
+    "",
+    "## Working Rules",
+    "",
+    "- Use authoritative and verified sources.",
+    "- Review all AI-generated content before publication.",
+    "- Preserve consistent legal terminology.",
+    "- Include citations and source links.",
+    "- Do not delete approved resources.",
+    "- Complete QA before publication.",
+    "",
+    "## Package Folder",
+    "",
+    packageInfo.documentFolder.getUrl()
+  ].join("\n");
+
+  const file = createTextFileIfMissing_(
+    packageInfo.documentFolder,
+    "README.md",
+    content
+  );
+  return assetResult_(file);
+}
+
+function createQAChecklist_(context, packageInfo) {
+  const content = [
+    "# JPAIS Quality Assurance Checklist",
+    "",
+    "## Document",
+    "- Document ID: " + context.documentId,
+    "- Title: " + context.documentTitle,
+    "- Assigned Lead: " + (context.assignedLead || ""),
+    "",
+    "## Source Verification",
+    "- [ ] Official source uploaded",
+    "- [ ] Title, number, year, and institution verified",
+    "- [ ] Amendments and legal status checked",
+    "",
+    "## Legal Accuracy",
+    "- [ ] Provisions represented accurately",
+    "- [ ] Terminology is consistent",
+    "- [ ] Quotations checked against source",
+    "- [ ] Unsupported conclusions removed",
+    "",
+    "## AI Verification",
+    "- [ ] Human review completed",
+    "- [ ] Hallucinated facts or citations removed",
+    "- [ ] Source content distinguished from analysis",
+    "",
+    "## Package Completeness",
+    "- [ ] Original document",
+    "- [ ] Executive summary",
+    "- [ ] Audio overview",
+    "- [ ] Presentation",
+    "- [ ] Mind map",
+    "- [ ] Infographic",
+    "- [ ] FAQ",
+    "- [ ] Quiz",
+    "- [ ] Metadata",
+    "- [ ] References",
+    "",
+    "## Approval",
+    "- [ ] Self-review",
+    "- [ ] Peer review",
+    "- [ ] Project Lead review",
+    "- [ ] Approved for publication"
+  ].join("\n");
+
+  const file = createTextFileIfMissing_(
+    packageInfo.documentFolder,
+    "QA_CHECKLIST.md",
+    content
+  );
+  return assetResult_(file);
+}
+
+function createPackageManifest_(context, packageInfo, assets) {
+  const rows = [
+    ["Resource Type", "Resource Name", "Status", "URL", "Version"],
+    ["Package Folder", packageInfo.documentFolder.getName(), "Available", packageInfo.documentFolder.getUrl(), JPAIS.VERSION],
+    ["Original Document", "", "Pending", "", JPAIS.VERSION],
+    ["Executive Summary", assets.executiveSummary.name, "Available", assets.executiveSummary.url, JPAIS.VERSION],
+    ["Audio Overview", "", "Pending", "", JPAIS.VERSION],
+    ["Presentation Slides", assets.presentation.name, "Available", assets.presentation.url, JPAIS.VERSION],
+    ["Mind Map", "", "Pending", "", JPAIS.VERSION],
+    ["Infographic", "", "Pending", "", JPAIS.VERSION],
+    ["FAQ", assets.faq.name, "Available", assets.faq.url, JPAIS.VERSION],
+    ["Quiz", assets.quiz.name, "Available", assets.quiz.publishedUrl, JPAIS.VERSION],
+    ["Metadata", assets.metadata.name, "Available", assets.metadata.url, JPAIS.VERSION],
+    ["References", assets.references.name, "Available", assets.references.url, JPAIS.VERSION]
+  ];
+
+  const csv = rows.map(function(row) {
+    return row.map(csvEscape_).join(",");
+  }).join("\n");
+
+  const file = createOrReplaceTextFile_(
+    packageInfo.documentFolder,
+    "MANIFEST.csv",
+    csv
+  );
+  return assetResult_(file);
+}
+
+function csvEscape_(value) {
+  const text = value === null || value === undefined ? "" : String(value);
+  return '"' + text.replace(/"/g, '""') + '"';
 }
 
 function appendMetadataTableToDoc_(body, context) {
-  const table = body.appendTable([
+  body.appendTable([
     ["Document ID", context.documentId],
     ["Category", context.category],
     ["Assigned Lead", context.assignedLead || ""],
-    ["Version", "1.0"],
+    ["Version", JPAIS.VERSION],
     ["Status", "Draft"]
   ]);
-  table.getRow(0).getCell(0).setBackgroundColor("#D9EAF7");
 }
 
-function moveFileToFolder_(fileId, destinationFolder) {
-  const file = DriveApp.getFileById(fileId);
-  file.moveTo(destinationFolder);
+function appendQualityNotice_(body) {
+  body.appendParagraph("Quality Notice")
+    .setHeading(DocumentApp.ParagraphHeading.HEADING2);
+  body.appendParagraph(
+    "This is an AI-assisted working template. All legal statements, citations, and interpretations must be verified against authoritative sources before publication."
+  ).setItalic(true);
 }
