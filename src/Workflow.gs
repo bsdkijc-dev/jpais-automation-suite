@@ -17,7 +17,7 @@ function setWorkflowStatus_(rowIndex, status) {
     .getActive()
     .getSheetByName(JPAIS.SHEETS.PRODUCTION);
 
-  const headerMap = buildHeaderMap_(sheet);
+  const headerMap = getHeaderMap_(sheet, 4);
 
   const column = headerMap["Workflow Status"];
 
