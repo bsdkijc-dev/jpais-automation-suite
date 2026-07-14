@@ -4,7 +4,17 @@
 function validateActiveProductionRow() {
   try {
     const context = getActiveProductionContext_();
-    setWorkflowStatus_(
+    const validation = validateProductionContext_(context);
+
+if (!validation.valid) {
+  SpreadsheetApp.getUi().alert(
+    "Validation Failed",
+    validation.errors.join("\n"),
+    SpreadsheetApp.getUi().ButtonSet.OK
+  );
+  return;
+}
+    etWorkflowStatus_(
   context.row,
   WORKFLOW_STATUS.VALIDATED
 );
