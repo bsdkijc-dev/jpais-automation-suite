@@ -123,3 +123,12 @@ function syncStatusJsonToProductionBoard_(context,obj){
   setByHeader_(context.sheet,context.row,context.headerMap,"Remarks","STATUS.json synchronized on "+formatTimestamp_(new Date()));
 }
 function extractDriveFolderId_(url){const m=String(url).match(/\/folders\/([a-zA-Z0-9_-]+)/); if(!m) throw new Error("Unable to extract folder ID from Drive Folder URL."); return m[1];}
+function normalizeBoardStatus_(value) {
+  const text = String(value || "").trim();
+
+  if (!text || text === "Not Started") {
+    return JPAIS_STATUS.PENDING;
+  }
+
+  return text;
+}
