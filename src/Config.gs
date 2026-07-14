@@ -12,7 +12,7 @@ const JPAIS = Object.freeze({
     ASSIGNMENTS: "Team Assignment",
     AI_TRACKER: "AI Resource Tracker",
     QA: "QA Review",
-    PUBLISHER: "Google Sites Publisher"
+    PUBLISHER: "Google Sites Publisher",
     AUDIT_LOG: "Audit Log"
   },
 
