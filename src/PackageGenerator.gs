@@ -16,6 +16,10 @@ function createCompleteKnowledgePackage() {
     lockAcquired = true;
 
     const context = getActiveProductionContext_();
+    setWorkflowStatus_(
+  context.row,
+  WORKFLOW_STATUS.GENERATING
+);
     validateNoExistingPackageConflict_(context);
 
     const packageInfo = ensureKnowledgePackageFolders_(context);
@@ -28,6 +32,10 @@ function createCompleteKnowledgePackage() {
     upsertPublisherRegister_(context, packageInfo, assets);
 
     SpreadsheetApp.flush();
+    setWorkflowStatus_(
+  context.row,
+  WORKFLOW_STATUS.READY
+);
     SpreadsheetApp.getActive().toast(
       "Knowledge Package created or safely reused.",
       "JPAIS",

@@ -4,6 +4,10 @@
 function validateActiveProductionRow() {
   try {
     const context = getActiveProductionContext_();
+    setWorkflowStatus_(
+  context.row,
+  WORKFLOW_STATUS.VALIDATED
+);
     SpreadsheetApp.getUi().alert(
       "Active Row Valid",
       [
