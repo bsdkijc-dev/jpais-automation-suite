@@ -67,6 +67,7 @@ logAudit_(
   "SUCCESS",
   "Knowledge Package created or safely reused."
 );
+refreshDashboardSafe_();
     SpreadsheetApp.getActive().toast(
       "Knowledge Package created or safely reused.",
       "JPAIS",

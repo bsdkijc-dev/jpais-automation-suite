@@ -24,6 +24,7 @@ if (!validation.valid) {
   "SUCCESS",
   "Active Production Board row validated."
 );
+refreshDashboardSafe_();
     SpreadsheetApp.getUi().alert(
       "Active Row Valid",
       [

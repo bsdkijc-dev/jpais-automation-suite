@@ -81,6 +81,7 @@ function updatePackageResourceStatus() {
     syncStatusJsonToProductionBoard_(context, current);
     SpreadsheetApp.getActive().toast(key + " updated to " + value, "JPAIS Status Engine", 6);
   } catch (error) { handleError_("Status update failed", error); }
+    refreshDashboardSafe_();
 }
 
 function rebuildPackageStatusFromBoard() {
