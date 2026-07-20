@@ -6,11 +6,23 @@ function onOpen() {
     .createMenu("JPAIS")
     .addItem("Initialize Suite", "initializeJPAIS")
     .addSeparator()
-    .addItem("Create Complete Knowledge Package", "createCompleteKnowledgePackage")
-    .addItem("Create Folder Structure Only", "createFolderStructureOnly")
+    .addItem(
+      "Create Complete Knowledge Package",
+      "createCompleteKnowledgePackage"
+    )
+    .addItem(
+      "Create Folder Structure Only",
+      "createFolderStructureOnly"
+    )
     .addSeparator()
-    .addItem("Update Resource Status", "updatePackageResourceStatus")
-    .addItem("Rebuild STATUS.json from Board", "rebuildPackageStatusFromBoard")
+    .addItem(
+      "Update Resource Status",
+      "updatePackageResourceStatus"
+    )
+    .addItem(
+      "Rebuild STATUS.json from Board",
+      "rebuildPackageStatusFromBoard"
+    )
     .addSeparator()
     .addItem("Open JPAIS Drive", "openJPAISDrive")
     .addItem("Validate Active Row", "validateActiveProductionRow")
