@@ -24,6 +24,31 @@ function createCompleteKnowledgePackage() {
 
     const packageInfo = ensureKnowledgePackageFolders_(context);
     const assets = createPackageAssets_(context, packageInfo);
+    const quality = evaluatePackageQuality_(assets);
+
+if (!quality.passed) {
+  SpreadsheetApp.getUi().alert(
+    "QA Checklist Failed",
+    "Missing assets:\n\n• " + quality.missing.join("\n• "),
+    SpreadsheetApp.getUi().ButtonSet.OK
+  );
+
+  logAudit_(
+    "QA_CHECK",
+    context.documentId,
+    "FAILED",
+    quality.missing.join(", ")
+  );
+
+  return;
+}
+
+logAudit_(
+  "QA_CHECK",
+  context.documentId,
+  "SUCCESS",
+  quality.passedCount + "/" + quality.total + " assets verified."
+);
     validateAssetSet_(assets);
 
     updateProductionRowAfterCreation_(context, packageInfo, true, assets);
