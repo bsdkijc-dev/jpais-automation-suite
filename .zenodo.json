@@ -1,0 +1,21 @@
+{
+  "title": "JPAIS Automation Suite",
+  "upload_type": "software",
+  "creators": [
+    {
+      "name": "Mustafa, Cecep",
+      "orcid": "0000-0003-0037-497X",
+      "affiliation": "Indonesian Judicial College (IJC)"
+    }
+  ],
+  "description": "Google Apps Script automation engine of the Judicial Policy AI Suite (JPAIS): Google Workspace automation, knowledge package generation, document workflow and publication support. Author: Cecep Mustafa, Indonesian Judicial College (IJC), ORCID 0000-0003-0037-497X.",
+  "license": "MIT",
+  "keywords": [
+    "Indonesia",
+    "judiciary",
+    "Google Apps Script",
+    "workflow automation",
+    "JPAIS"
+  ],
+  "access_right": "open"
+}
